@@ -1,0 +1,46 @@
+<!-- An example for the configuration of my-,essage-queue -->
+<myqueues>
+
+	<queue name="my-simple-queue">	<!-- The name identifies the queue -->
+		<conditions>				<!-- All the conditions are evaluated in order and in "AND" -->
+			<!-- 
+				The "type" is the full package and Classname; the child of this node is the configuration for the condition. 
+				The "order" is used to execution order for the conditions, and is 0-based.
+				The condition with order="1" triggers the evaluation of all the other conditions. If all the conditions are evaluated to true, then 
+				the Processor is executed and all the listeners are invoked.
+                A coondition may return a message, that can be elaborated by the processor before used by the
+                listeners.
+			-->
+			<condition order="0" type="it.myideas.messagequeues.conditions.TimerCondition">	
+				<schedule>
+					<second>1</second>
+					<minute>*/5</minute>
+					<hour>*</hour>
+					<dayOfMonth>*</dayOfMonth>
+					<month>*</month>
+					<dayOfWeek>*</dayOfWeek>
+					<year>*</year>
+				</schedule>
+			</condition>
+			<condition order="1" type="it.myideas.messagequeues.conditions.BooleanCondition">
+				<value>true</value>
+			</condition>
+		</conditions>
+		
+        <!-- OPTIONAL; can elaborate the result of the condition (if present) and generates the data to send by the listeners -->
+		<processor type="com.sistemaits.optima.messagequeues.processors.BaseProcessor"/>
+		
+		<listeners>
+			<listener type="com.sistemaits.optima.messagequeues.recipients.RESTSender">
+				<url>http://requestb.in/1gqhg6t1</url>
+				<headers>
+				<Content-Type>pippo</Content-Type>
+				<Pippo>pluto</Pippo>
+				</headers>
+				<body>PUZZAAA</body>	<!-- The result of the processor can be used or not by the condition. You don't know, the condition will know -->
+			</listener>
+		</listeners>
+		
+	</queue>
+	
+</myqueues>
