@@ -1,82 +1,138 @@
 package it.myideas.mymessagequeue;
 
-
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.Hashtable;
-import java.util.List;
-
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
-import javax.ejb.LocalBean;
-import javax.ejb.Singleton;
+import java.util.HashMap;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.apache.commons.configuration.HierarchicalConfiguration;
 import org.apache.log4j.Logger;
 
 /**
- * Use this EJB to crete, start and stop the queues. 
- * Usin
+ * Singleton class for managing *all* the queues handled by a program.
+ * 
  * @author Tommaso Doninelli
  *
  */
-@Singleton
-@LocalBean
 public class QueueManager {
-
+    
+    private static QueueManager me = null;    
     private static Logger log = Logger.getLogger(QueueManager.class);
-    private static Hashtable<String, ArrayList<Queue>> map_queues;
+    
+    private HashMap<String, Queue> queues;
+    private HashMap<String, ExecutorService> queueThreads;
     
     
-    @PostConstruct
-    private void constructor() {
-        map_queues = new Hashtable<>();
+    private QueueManager() {
+        queues = new HashMap<>();
+        queueThreads = new HashMap<>();
+    }
+
+    private QueueManager me() {
+        if(me == null){
+            me = new QueueManager();
+        }
+        return me;
     }
     
     /**
-     * Stop all running queues.
-     * This method is invoked internally on @PreDestroy. Subsequent calls on this method are idempotent
-     * 
+     * Add a new queue specified by a given configuration
+     * @param configuration
+     * @param autoStart
+     * @return false if the queue specified by the configuration already exists
      */
-    @PreDestroy
-    private void stopAllQueues(){
+    public boolean addQueue(HierarchicalConfiguration configuration, boolean autoStart) {
         
-        log.info("Stopping all queue listeners");
+        String queueName = configuration.getRootNode().getAttribute(0).getValue().toString();
+        if(queues.containsKey(queueName)){
+            log.error(String.format("The queue %s already exists", queueName));
+            return false;
+        }
         
-        Enumeration<ArrayList<Queue>> equeues = map_queues.elements();
+        log.info(String.format("Creating queue %s", queueName));
+        Queue queue = null;
         
-        while(equeues.hasMoreElements()){
-            ArrayList<Queue> queues = equeues.nextElement();
-            
-            for(Queue queue : queues) {
-//                queue.killAllListener();
-            }            
-        }       
+        try {
+            queue = new Queue(configuration);            
+        }
+        catch (Exception e){
+            log.error(e);
+            return false;
+        }
+        
+        queues.put(queueName, queue);
+        
+        if(autoStart){
+            return start(queueName);
+        }
+        
+        return true;
+    }
+    
+    public boolean isQueueRunning(String name) {
+        ExecutorService thread = queueThreads.get(name);
+        
+        if(thread == null || thread.isShutdown() || thread.isTerminated()) {
+            return false;
+        }
+        return true;
     }
     
     /**
-     * Initialize all the queues found in the specified {@link HierarchicalConfiguration}.
-     * 
-     * @param name The name that will be used to identify all the queues that belongs to this node
-     * @param hc The configuration for the queues
+     * Starts a queue if it is not running, otherwise returns false
+     * @param name
+     * @return false if the queue does not exists or is already running
      */
-    public void initializeQueues(String name, HierarchicalConfiguration hc) {
-        log.info("Enabling MessageQueues for " + name);        
-        ArrayList<Queue> queues = new ArrayList<Queue>();        
+    public boolean start(String name) {
         
-        Queue queue = new Queue(hc);
-        queues.add(queue);
+        if(isQueueRunning(name)){
+            return false;
+        }
         
-        map_queues.put(name, queues);     
+        Queue queue = queues.get(name);
         
-        startQueues(name);
+        if(queue == null){
+            return false;
+        }
+        
+        ExecutorService thread = Executors.newSingleThreadExecutor();
+        queueThreads.put(name, thread);
+        thread.submit(queue);
+        
+        log.info("Starting queue " + queue.getName());
+        
+        return true;
     }
     
-    public void startQueues(String name){
-        List<Queue> queues = map_queues.get(name);
-        for(Queue queue : queues) {
-//            queue.start();
+    public void startAll() {
+        Set<Entry<String, Queue>> set = me().queues.entrySet();
+        for(Entry<String, Queue> entry : set){
+            start(entry.getKey());
         }
     }
+    
+    /**
+     * 
+     * @return TRUE if the queue is NOT running
+     */
+    public boolean stop(String name) {
+        if(!isQueueRunning(name)) {
+            log.info("Queue " + name + " was already stopped");
+            return true;
+        }
+        
+        log.info("Stopping queue " + name);
+        queueThreads.get(name).shutdownNow();
+        return true;
+    }
+    
+    public void stopAll() {
+        Set<Entry<String, Queue>> set = me().queues.entrySet();
+        for(Entry<String, Queue> entry : set){
+            stop(entry.getKey());
+        }
+    }
+    
     
 }

@@ -140,7 +140,7 @@ public class Queue implements Runnable {
     @Override
     public void run() {
 
-        thread = Executors.newSingleThreadExecutor();
+        thread = Executors.newSingleThreadExecutor();        // "Fork" a thread for the first condition 
         
         while(isQueueRunning.get()) {
             
@@ -209,6 +209,10 @@ public class Queue implements Runnable {
         }
         
         listenerThreapPool.shutdownNow();
+    }
+
+    public String getName() {
+        return this.name;
     }
     
     

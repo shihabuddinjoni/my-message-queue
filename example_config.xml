@@ -34,8 +34,8 @@
 			<listener type="com.sistemaits.optima.messagequeues.recipients.RESTSender">
 				<url>http://requestb.in/1gqhg6t1</url>
 				<headers>
-				<Content-Type>pippo</Content-Type>
-				<Pippo>pluto</Pippo>
+					<Content-Type>pippo</Content-Type>
+					<Pippo>pluto</Pippo>
 				</headers>
 				<body>PUZZAAA</body>	<!-- The result of the processor can be used or not by the condition. You don't know, the condition will know -->
 			</listener>
