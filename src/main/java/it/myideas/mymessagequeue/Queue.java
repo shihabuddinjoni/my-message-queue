@@ -68,10 +68,10 @@ public class Queue implements Runnable {
         for(HierarchicalConfiguration hcListener : hcconditions) {
             
             String className = hcListener.getRootNode().getAttributes("type").get(0).getValue().toString();
-            int index = Integer.parseInt(hcListener.getRootNode().getAttributes("index").get(0).getValue().toString());
+            int index = Integer.parseInt(hcListener.getRootNode().getAttributes("order").get(0).getValue().toString());
             
-            Class[] constructorSign = new Class[]{HierarchicalConfiguration.class, Queue.class};
-            Object[] constructorParams = new Object[]{hcListener, this};
+            Class[] constructorSign = new Class[]{HierarchicalConfiguration.class};
+            Object[] constructorParams = new Object[]{hcListener};
             try {
                 Class c = Class.forName(className);            
                 Constructor ct = c.getConstructor(constructorSign);
@@ -104,7 +104,7 @@ public class Queue implements Runnable {
         ///////////////////////
         // LOADING LISTENERS //
         ///////////////////////
-        List<HierarchicalConfiguration> recs = hc.configurationsAt("/recipients/recipient");
+        List<HierarchicalConfiguration> recs = hc.configurationsAt("/listeners/listener");
         listeners = new ArrayList<>(recs.size());
         
         for(HierarchicalConfiguration hh : recs) {
@@ -123,6 +123,11 @@ public class Queue implements Runnable {
             } 
         }       
         
+        if(listeners.size() == 0){
+            log.error("No listener defined for the queue! - can not happen");
+            return;
+        }
+        
         // The listeners will be invoked using a threadpool.
         // Here we try to do not create too much threads
         listenerThreapPool = Executors.newFixedThreadPool(Math.min(2, listeners.size()));
@@ -140,7 +145,10 @@ public class Queue implements Runnable {
     @Override
     public void run() {
 
+        log.info("Starting " + this.name);
         thread = Executors.newSingleThreadExecutor();        // "Fork" a thread for the first condition 
+        
+        isQueueRunning.set(true);
         
         while(isQueueRunning.get()) {
             

@@ -29,7 +29,7 @@ public class QueueManager {
         queueThreads = new HashMap<>();
     }
 
-    private QueueManager me() {
+    private static QueueManager me() {
         if(me == null){
             me = new QueueManager();
         }
@@ -42,10 +42,10 @@ public class QueueManager {
      * @param autoStart
      * @return false if the queue specified by the configuration already exists
      */
-    public boolean addQueue(HierarchicalConfiguration configuration, boolean autoStart) {
+    public static boolean addQueue(HierarchicalConfiguration configuration, boolean autoStart) {
         
-        String queueName = configuration.getRootNode().getAttribute(0).getValue().toString();
-        if(queues.containsKey(queueName)){
+        String queueName = configuration.getRootNode().getAttributes("name").get(0).getValue().toString();
+        if(me().queues.containsKey(queueName)){
             log.error(String.format("The queue %s already exists", queueName));
             return false;
         }
@@ -57,11 +57,11 @@ public class QueueManager {
             queue = new Queue(configuration);            
         }
         catch (Exception e){
-            log.error(e);
+            log.error("Erro creating a queue", e);
             return false;
         }
         
-        queues.put(queueName, queue);
+        me().queues.put(queueName, queue);
         
         if(autoStart){
             return start(queueName);
@@ -70,8 +70,17 @@ public class QueueManager {
         return true;
     }
     
-    public boolean isQueueRunning(String name) {
-        ExecutorService thread = queueThreads.get(name);
+    public static boolean removeQueue(String name) {
+        if(isQueueRunning(name)){
+            stop(name);
+        }
+        
+        me().queues.remove(name);
+        return true;
+    }
+    
+    public static boolean isQueueRunning(String name) {
+        ExecutorService thread = me().queueThreads.get(name);
         
         if(thread == null || thread.isShutdown() || thread.isTerminated()) {
             return false;
@@ -84,28 +93,28 @@ public class QueueManager {
      * @param name
      * @return false if the queue does not exists or is already running
      */
-    public boolean start(String name) {
+    public static boolean start(String name) {
         
         if(isQueueRunning(name)){
             return false;
         }
         
-        Queue queue = queues.get(name);
+        Queue queue = me().queues.get(name);
         
         if(queue == null){
             return false;
         }
         
         ExecutorService thread = Executors.newSingleThreadExecutor();
-        queueThreads.put(name, thread);
-        thread.submit(queue);
-        
+        me().queueThreads.put(name, thread);
         log.info("Starting queue " + queue.getName());
+
+        thread.submit(queue);
         
         return true;
     }
     
-    public void startAll() {
+    public static void startAll() {
         Set<Entry<String, Queue>> set = me().queues.entrySet();
         for(Entry<String, Queue> entry : set){
             start(entry.getKey());
@@ -116,18 +125,18 @@ public class QueueManager {
      * 
      * @return TRUE if the queue is NOT running
      */
-    public boolean stop(String name) {
+    public static boolean stop(String name) {
         if(!isQueueRunning(name)) {
             log.info("Queue " + name + " was already stopped");
             return true;
         }
         
         log.info("Stopping queue " + name);
-        queueThreads.get(name).shutdownNow();
+        me().queueThreads.get(name).shutdownNow();
         return true;
     }
     
-    public void stopAll() {
+    public static void stopAll() {
         Set<Entry<String, Queue>> set = me().queues.entrySet();
         for(Entry<String, Queue> entry : set){
             stop(entry.getKey());
