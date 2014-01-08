@@ -9,6 +9,7 @@ import it.myideas.mymessagequeue.processor.Processor;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -86,7 +87,12 @@ public class Queue implements Runnable {
         ///////////////////////
         // LOADING PROCESSOR //
         ///////////////////////
-        HierarchicalConfiguration hcProcessor = hc.configurationAt("processor");
+        HierarchicalConfiguration hcProcessor = null;
+        try {
+            hcProcessor = hc.configurationAt("processor");
+        }
+        catch(Exception e){}
+        
         if(hcProcessor != null ) {
             String classNameProcessor = hcProcessor.getRootNode().getAttributes("type").get(0).getValue().toString();
             Class[] constructorSignProcessor = new Class[]{HierarchicalConfiguration.class};
@@ -127,10 +133,7 @@ public class Queue implements Runnable {
             log.error("No listener defined for the queue! - can not happen");
             return;
         }
-        
-        // The listeners will be invoked using a threadpool.
-        // Here we try to do not create too much threads
-        listenerThreapPool = Executors.newFixedThreadPool(Math.min(2, listeners.size()));
+           
     }
 
     /**
@@ -145,7 +148,7 @@ public class Queue implements Runnable {
     @Override
     public void run() {
 
-        log.info("Starting " + this.name);
+        log.debug("Starting " + this.name);
         thread = Executors.newSingleThreadExecutor();        // "Fork" a thread for the first condition 
         
         isQueueRunning.set(true);
@@ -163,7 +166,7 @@ public class Queue implements Runnable {
                     continue;
                 }
                 
-                log.debug("Queue " + this.name + " - Recived a notification object from the first condition");
+                log.debug("Queue " + this.name + " activated ");
                 
                 // Process all the remaining conditions
                 try {
@@ -187,9 +190,21 @@ public class Queue implements Runnable {
                     allConditionsAreVerified = false;
                 }               
             }
-            catch (InterruptedException | ExecutionException e) {
+            catch (InterruptedException | CancellationException e) {
+                // The queue as been stopped! No problem here
+                allConditionsAreVerified = false; // Not needed here
+                isQueueRunning.set(false);
+            }
+            catch(Exception e) {
                 log.error("Error waiting for activationByCondition; retry", e);
             }
+            
+            if(!allConditionsAreVerified){
+                log.debug("Not all conditions are active. Return");
+                continue;
+            }
+            
+            log.trace("Sending a message to all listeners");
             
             // Process the input (Do I really need it?)
             if(processor != null){
@@ -198,9 +213,18 @@ public class Queue implements Runnable {
             
             // Notify all the listeners
             // The listeners are processed as "launch and forget" thread
+            // The listeners will be invoked using a threadpool.
+            // Here we try to do not create too much threads
+            listenerThreapPool = Executors.newFixedThreadPool(Math.min(2, listeners.size()));
+            
             for(Listener rec : listeners) {
-                rec.setMessage(message);
-                listenerThreapPool.submit(rec);                
+                try {
+                    rec.setMessage(message);
+                    listenerThreapPool.submit(rec);
+                }
+                catch(Exception e) {
+                    log.error("Can't send message to listener " + rec.toString());
+                }
             }
             
             listenerThreapPool.shutdown();  // Wait for all the message to be broadcasted
@@ -208,7 +232,8 @@ public class Queue implements Runnable {
     }
     
     /**
-     * Stop this queue and any running process
+     * Stop this queue and release any resources associated by this queue 
+     * (this method propagate the stop to all the {@link Listener}s and to all the {@link Condition}s).
      */
     public void stopAll() {
         isQueueRunning.compareAndSet(true, false);
@@ -217,6 +242,14 @@ public class Queue implements Runnable {
         }
         
         listenerThreapPool.shutdownNow();
+        
+        for(Condition c : conditions){
+            c.stop();
+        }
+        
+        for(Listener l : listeners){
+            l.stop();
+        }
     }
 
     public String getName() {

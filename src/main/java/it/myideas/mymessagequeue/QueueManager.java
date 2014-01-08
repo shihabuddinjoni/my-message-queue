@@ -1,6 +1,8 @@
 package it.myideas.mymessagequeue;
 
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -49,8 +51,7 @@ public class QueueManager {
             log.error(String.format("The queue %s already exists", queueName));
             return false;
         }
-        
-        log.info(String.format("Creating queue %s", queueName));
+
         Queue queue = null;
         
         try {
@@ -96,6 +97,7 @@ public class QueueManager {
     public static boolean start(String name) {
         
         if(isQueueRunning(name)){
+            log.info("Queue " + name + " is running.");
             return false;
         }
         
@@ -107,18 +109,22 @@ public class QueueManager {
         
         ExecutorService thread = Executors.newSingleThreadExecutor();
         me().queueThreads.put(name, thread);
-        log.info("Starting queue " + queue.getName());
-
+        
         thread.submit(queue);
         
         return true;
     }
     
-    public static void startAll() {
+    public static boolean startAll() {
+        
+        boolean allDeployed = true;
         Set<Entry<String, Queue>> set = me().queues.entrySet();
         for(Entry<String, Queue> entry : set){
-            start(entry.getKey());
+            if(!start(entry.getKey())){
+                allDeployed = false;
+            }
         }
+        return allDeployed;
     }
     
     /**
@@ -132,15 +138,41 @@ public class QueueManager {
         }
         
         log.info("Stopping queue " + name);
-        me().queueThreads.get(name).shutdownNow();
+        
+        me().queueThreads.get(name).shutdownNow();  // Stop the thread
+        me().queues.get(name).stopAll();            // Stop the queue and release resources
+        return true;    
+    }
+    
+    public static boolean stopAll() {
+        
+        boolean allStopped = true;
+        Set<Entry<String, Queue>> set = me().queues.entrySet();
+        for(Entry<String, Queue> entry : set){
+            if(!stop(entry.getKey())){
+                allStopped = false;
+            }
+        }
+        return allStopped;
+    }
+
+    /**
+     * Stop and remove all the queues
+     * @return
+     */
+    public static boolean removeAll() {
+
+        stopAll();
+        
+        me().queues.clear();
+        me().queueThreads.clear();
+        
         return true;
     }
     
-    public static void stopAll() {
-        Set<Entry<String, Queue>> set = me().queues.entrySet();
-        for(Entry<String, Queue> entry : set){
-            stop(entry.getKey());
-        }
+    public static Collection<Queue> listQueues() {
+
+        return me.queues.values();
     }
     
     

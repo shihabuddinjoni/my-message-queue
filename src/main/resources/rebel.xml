@@ -2,7 +2,7 @@
 <application xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.zeroturnaround.com" xsi:schemaLocation="http://www.zeroturnaround.com http://www.zeroturnaround.com/alderaan/rebel-2_0.xsd">
 
 	<classpath>
-		<dir name="C:/Users/tommaso.doninelli/Dropbox/Lavoro/SISTeMA/workspace_eclipse/java_jboss/my-message-queue/target/classes">
+		<dir name="C:/Users/tommaso.doninelli/Dropbox/Lavoro/SISTeMA/workspace_eclipse/java_jboss/ws-optima-trunk/my-message-queue/target/classes">
 		</dir>
 	</classpath>
 
