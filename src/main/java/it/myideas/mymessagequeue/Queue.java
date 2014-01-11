@@ -241,7 +241,10 @@ public class Queue implements Runnable {
             thread.shutdownNow();
         }
         
-        listenerThreapPool.shutdownNow();
+        if(listenerThreapPool != null) {
+            listenerThreapPool.shutdownNow();
+        }
+        
         
         for(Condition c : conditions){
             c.stop();
